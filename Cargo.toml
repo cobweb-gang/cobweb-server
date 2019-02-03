@@ -1,0 +1,18 @@
+[package]
+name = "cobweb_server"
+version = "0.1.0"
+authors = ["David Bernado <dbernado@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.1.23"
+tokio-core = "0.1.17"
+tun-tap = "0.1.1"
+miscreant = "0.4.2"
+spake2 = "0.1.1"
+keybob = "0.3.1"
+clap = "2.32.0"
+futures-retry = "0.3.0"
+
+[build]
+rustflags = ["-Ctarget-feature=+aes,+ssse3"]
