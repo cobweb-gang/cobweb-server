@@ -11,7 +11,6 @@ use futures::prelude::*;
 use futures::stream::{SplitSink, SplitStream};
 use futures::sink::With;
 use futures::stream::Map;
-use std::result::Result as DualResult;
 
 fn cmd(cmd: &str, args: &[&str]) {
     let ecode = Command::new("ip")
@@ -33,15 +32,12 @@ where T: Sink<SinkItem=Vec<u8>>,
       U: Stream<Item=Vec<u8>>,
       U::Error: std::fmt::Debug,
 {
-    pub fn new(key: &Key, handle: &Handle) -> DualResult<
+    pub fn new(handle: &Handle) -> Result<
         EncryptedTun<
-            With<SplitSink<Async>, Vec<u8>, De, Result<Vec<u8>>>,
-            Map<SplitStream<Async>, En>
-            >,
-        &'static str>
+            SplitSink<Async>,
+            SplitStream<Async>
+            >>
         {
-        let encryptor = En::new(&key);
-        let decryptor = De::new(&key);
         
         let tun = Iface::new("vpn%d", Mode::Tun);
 
@@ -56,9 +52,25 @@ where T: Sink<SinkItem=Vec<u8>>,
         let (sink, stream) = Async::new(tun_ok, handle)
             .unwrap()
             .split();
+        
+        Ok(EncryptedTun {
+            sink: sink,
+            stream: stream,
+        })
+    }
 
-        let decrypted_sink = sink.with(decryptor);
-        let encrypted_stream = stream.map(encryptor);
+    pub fn encrypt(self, key: &Key) -> Result<
+        EncryptedTun<
+            With<T, Vec<u8>, De, Result<Vec<u8>>>,
+            Map<U, En>
+            >>
+            where std::io::Error: std::convert::From<<T as futures::Sink>::SinkError>
+            {
+        let encryptor = En::new(&key);
+        let decryptor = De::new(&key);
+        
+        let decrypted_sink = self.sink.with(decryptor);
+        let encrypted_stream = self.stream.map(encryptor);
         
         Ok(EncryptedTun {
             sink: decrypted_sink,

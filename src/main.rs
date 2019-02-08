@@ -10,8 +10,9 @@ use futures::stream::Map;
 use tun_tap::r#async::Async;
 use miscreant::stream::{Encryptor, NONCE_SIZE};
 use miscreant::Aes128SivAead;
-use std::io::Result as HalfResult;
 use clap::{Arg, App};
+use std::io::Result as HalfResult;
+use std::str::from_utf8;
 
 const NONCE_PREFIX: &[u8; NONCE_SIZE] = &[0u8; NONCE_SIZE];
 
@@ -37,29 +38,33 @@ fn main() {
         ::std::process::exit(1);
     });
 
-    let sock = UdpSocket::bind(&loc_addr.parse().unwrap(), &handle).unwrap();
+    let init_sock = UdpSocket::bind(&loc_addr.parse().unwrap(), &handle).unwrap()
+        .framed(UdpVecCodec::new("127.0.0.1:1337".parse().unwrap()));
 
-    loop {
-        let (key, rem_addr) = handshake(&client_num, &loc_addr, &sock, pass).unwrap();
-        client_num + 1;
+    init_sock.for_each(move |msg| {
+        let client_addr = from_utf8(&msg.as_slice()).unwrap().parse().unwrap();
 
         let ind_client_addr = format!("127.0.0.1:{}", 1337 + client_num);
+        let ind_client_sock = UdpSocket::bind(&ind_client_addr.parse().unwrap(), &handle).unwrap();
+        
+        let (key, rem_addr) = handshake(&client_num, &loc_addr, &ind_client_sock, pass, &client_addr).unwrap();
+        client_num + 1;
+
         let mut one_time_en: Encryptor<Aes128SivAead> = Encryptor::new(key.as_slice(), NONCE_PREFIX);
         let message = one_time_en.seal_next(&[], ind_client_addr.as_bytes());
         
-        let ind_client_sock = UdpSocket::bind(&ind_client_addr.parse().unwrap(), &handle).unwrap();
-        sock.send(message.as_slice()).unwrap();
+        ind_client_sock.send_to(message.as_slice(), &client_addr).unwrap();
 
         let (udp_sink, udp_stream) = ind_client_sock.framed(UdpVecCodec::new(rem_addr))
             .split();
 
-        let tun = EncryptedTun::<With<SplitSink<Async>, Vec<u8>, De, HalfResult<Vec<u8>>>, Map<SplitStream<Async>, En>>::new(&key, &handle);
-
+        // If multiple clients doesn't work, take this out of the closure
+        let tun = EncryptedTun::<With<SplitSink<Async>, Vec<u8>, De, HalfResult<Vec<u8>>>, Map<SplitStream<Async>, En>>::new(&handle).unwrap().encrypt(&key);
         let (tun_sink, tun_stream) = tun.unwrap().split();
 
         let sender = tun_stream.forward(udp_sink);
         let receiver = udp_stream.forward(tun_sink);
-        core.run(sender.join(receiver))
-            .unwrap();
-    }
+        core.run(sender.join(receiver)).unwrap();
+        futures::future::ok(())
+    }).wait().unwrap();
 }
