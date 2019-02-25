@@ -46,6 +46,7 @@ fn main() {
 
         let ind_client_addr = format!("127.0.0.1:{}", 1337 + client_num);
         let ind_client_sock = UdpSocket::bind(&ind_client_addr.parse().unwrap(), &handle).unwrap();
+        ind_client_sock.send_to(&mut [0u8], &client_addr).unwrap();
         
         let (key, rem_addr) = handshake(&client_num, &loc_addr, &ind_client_sock, pass, &client_addr).unwrap();
         client_num + 1;
