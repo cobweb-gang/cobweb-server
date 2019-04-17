@@ -13,6 +13,9 @@ spake2 = "0.1.1"
 keybob = "0.3.1"
 clap = "2.32.0"
 futures-retry = "0.3.0"
+bytes = "0.4.12"
+tokio-io = "0.1.12"
+tokio-codec = "0.1.1"
 
 [build]
 rustflags = ["-Ctarget-feature=+aes,+ssse3"]

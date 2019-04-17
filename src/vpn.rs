@@ -4,13 +4,13 @@ use keybob::Key;
 use tun_tap::{Iface, Mode};
 use tun_tap::r#async::Async;
 use std::process::Command;
-use std::net::SocketAddr;
 use tokio_core::reactor::Handle;
-use tokio_core::net::UdpCodec;
+use tokio_codec::{Decoder, Encoder};
 use futures::prelude::*;
 use futures::stream::{SplitSink, SplitStream};
 use futures::sink::With;
 use futures::stream::Map;
+use bytes::BytesMut;
 
 fn cmd(cmd: &str, args: &[&str]) {
     let ecode = Command::new("ip")
@@ -83,22 +83,24 @@ where T: Sink<SinkItem=Vec<u8>>,
     }
 }
 
-pub struct UdpVecCodec(SocketAddr);
+pub struct TcpVecCodec;
 
-impl UdpVecCodec {
-    pub fn new(addr: SocketAddr) -> Self {
-        UdpVecCodec(addr)
+impl Decoder for TcpVecCodec {
+    type Item = Vec<u8>;
+    type Error = std::io::Error;
+
+    fn decode (&mut self, buf: &mut BytesMut) -> std::io::Result<Option<Self::Item>> {
+        Ok(Some(buf.iter().cloned().collect()))
     }
 }
 
-impl UdpCodec for UdpVecCodec {
-	type In = Vec<u8>;
-	type Out = Vec<u8>;
-	fn decode(&mut self, _src: &SocketAddr, buf: &[u8]) -> Result<Self::In> {
-		Ok(buf.to_owned())
-	}
-	fn encode(&mut self, msg: Self::Out, buf: &mut Vec<u8>) -> SocketAddr {
-		buf.extend(&msg);
-		self.0
-	}
+impl Encoder for TcpVecCodec {
+    type Item = Vec<u8>;
+    type Error = std::io::Error;
+
+    fn encode (&mut self, item: Self::Item, dst: &mut BytesMut) -> std::io::Result<()> {
+        dst.extend_from_slice(item.as_slice());
+
+        Ok(())
+    }
 }
