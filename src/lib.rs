@@ -3,7 +3,6 @@
 #![feature(fn_traits)]
 
 extern crate futures;
-extern crate futures_retry;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_codec;

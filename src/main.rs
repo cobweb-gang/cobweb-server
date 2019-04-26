@@ -3,15 +3,15 @@ use cobweb_server::server::handshake;
 use cobweb_server::en::{En, De};
 use tokio_core::reactor::Core;
 use tokio_core::net::TcpListener;
-use tokio_io::AsyncRead;
+use tokio_io::{AsyncWrite, AsyncRead};
 use futures::prelude::*;
 use futures::stream::{SplitSink, SplitStream};
 use futures::sink::With;
 use futures::stream::Map;
 use tun_tap::r#async::Async;
+use bytes::buf::IntoBuf;
 use clap::{Arg, App};
 use std::io::Result as HalfResult;
-use std::io::Write;
 
 fn main() {
     let matches = App::new("Cobweb")
@@ -40,7 +40,7 @@ fn main() {
     let future = init_sock.incoming().for_each(move |(mut stream, _rem_addr)| {
         let port: u16 = 1337 + client_num;
 
-        stream.write(&port.to_be_bytes()).unwrap();
+        stream.write_buf(&mut port.to_be_bytes().into_buf()).unwrap();
 
         let key = handshake(&client_num, &"0.0.0.0:1337", &stream, pass).unwrap();
         client_num + 1;
