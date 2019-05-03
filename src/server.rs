@@ -11,9 +11,7 @@ pub fn handshake(client_num: &u16, server_id: &str, sock: &TcpStream, pass: &str
         &Identity::new(server_id.as_bytes()),
         );
 
-    let mut vec = vec![0, 0];
-    vec.extend_from_slice(&outbound_msg);
-    write_all(sock, &vec.as_slice()).wait().unwrap();
+    write_all(sock, &outbound_msg).wait().unwrap();
 
     let mut inbound_msg: &mut [u8] = &mut [0u8; 33];
     read(sock, &mut inbound_msg).wait().unwrap();
