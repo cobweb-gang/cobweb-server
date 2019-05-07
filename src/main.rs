@@ -37,7 +37,7 @@ fn main() {
 
     let init_sock = TcpListener::bind(&loc_addr, &handle).unwrap();
 
-    let future = init_sock.incoming().for_each(move |(stream, _rem_addr)| {
+    init_sock.incoming().for_each(move |(stream, _rem_addr)| {
         client_num + 1;
         let port: u16 = 1337 + client_num;
         loc_addr.set_port(port);
@@ -48,7 +48,6 @@ fn main() {
 
         let key = handshake(&client_num, &"0.0.0.0:1337", &stream, pass).unwrap();
 
-        println!("{}", loc_addr);
         let (std_stream, _addr) = std_sock.accept()
             .unwrap();
         let ind_sock = TcpStream::from_stream(std_stream, &handle).unwrap();
@@ -57,7 +56,6 @@ fn main() {
             .split();
 
         let tun = EncryptedTun::<With<SplitSink<Async>, Vec<u8>, De, HalfResult<Vec<u8>>>, Map<SplitStream<Async>, En>>::new(&handle).unwrap().encrypt(&key);
-        println!("Damn");
 
         let (tun_sink, tun_stream) = tun.unwrap().split();
 
@@ -66,8 +64,5 @@ fn main() {
         core.run(sender.join(receiver)).unwrap();
 
         futures::future::ok(())
-    });
-
-    let mut core1 = Core::new().unwrap();
-    core1.run(future).unwrap();
+    }).wait().unwrap();
 }
